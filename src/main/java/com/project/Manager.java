@@ -1,13 +1,14 @@
 package com.project;
-
+import java.util.Properties;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 
 import org.hibernate.HibernateException;
 import org.hibernate.SQLQuery;
-import org.hibernate.Session; 
+import org.hibernate.Session;
 import org.hibernate.Transaction;
 import org.hibernate.boot.registry.StandardServiceRegistry;
 import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
@@ -16,129 +17,108 @@ import org.hibernate.cfg.Configuration;
 
 public class Manager {
 
-    private static SessionFactory factory; 
-    
-    public static void createSessionFactory() {
+    private static SessionFactory factory;
 
+    public static void createSessionFactory(String propertiesFileName, String configFileName) {
         try {
             Configuration configuration = new Configuration();
-            configuration.configure();
+            // Carrega la configuració des d'un fitxer especific
+            configuration.configure(configFileName);
+            // Carrega el fitxer de propietats des d'un fitxer específic
+            Properties properties = new Properties();
+            try (InputStream input = Manager.class.getClassLoader().getResourceAsStream(propertiesFileName)) {
+                if (input == null) {
+                    throw new IOException("Unable to find " + propertiesFileName + " in classpath.");
+                }
+                properties.load(input);
+            }
+            configuration.addProperties(properties);
             StandardServiceRegistry serviceRegistry = new StandardServiceRegistryBuilder().applySettings(
-            configuration.getProperties()).build();
+                configuration.getProperties()).build();
             factory = configuration.buildSessionFactory(serviceRegistry);
-        } catch (Throwable ex) { 
+        } catch (Throwable ex) {
             System.err.println("Failed to create sessionFactory object." + ex);
-            throw new ExceptionInInitializerError(ex); 
+            throw new ExceptionInInitializerError(ex);
         }
     }
 
-    public static void close () {
+
+    public static void close() {
         factory.close();
     }
-  
-    public static Cart addCart(String type){
+
+    public static Ciutat addCiutat(String nom, String pais,int codiPostal ){
         Session session = factory.openSession();
         Transaction tx = null;
-        Cart result = null;
+        Ciutat result = null;
         try {
             tx = session.beginTransaction();
-            result = new Cart(type);
-            session.save(result); 
+            result = new Ciutat(nom,pais,codiPostal);
+            session.save(result);
             tx.commit();
         } catch (HibernateException e) {
-            if (tx!=null) tx.rollback();
-            e.printStackTrace(); 
+            if (tx != null)
+                tx.rollback();
+            e.printStackTrace();
             result = null;
         } finally {
-            session.close(); 
+            session.close();
         }
         return result;
     }
 
-    public static Item addItem(String name){
+    public static Ciutada addCiutada(long ciutadId, String nom, String cognom, int edat){
         Session session = factory.openSession();
         Transaction tx = null;
-        Item result = null;
+        Ciutada result = null;
         try {
             tx = session.beginTransaction();
-            result = new Item(name);
-            session.save(result); 
+            result = new Ciutada(ciutadId, nom, cognom, edat);
+            session.save(result);
             tx.commit();
         } catch (HibernateException e) {
-            if (tx!=null) tx.rollback();
-            e.printStackTrace(); 
+            if (tx != null)
+                tx.rollback();
+            e.printStackTrace();
             result = null;
         } finally {
-            session.close(); 
+            session.close();
         }
         return result;
     }
 
-    public static <T> T getById(Class<? extends T> clazz, long id){
+    public static <T> T getById(Class<? extends T> clazz, long id) {
         Session session = factory.openSession();
         Transaction tx = null;
         T obj = null;
         try {
             tx = session.beginTransaction();
-            obj = clazz.cast(session.get(clazz, id)); 
+            obj = clazz.cast(session.get(clazz, id));
             tx.commit();
         } catch (HibernateException e) {
-            if (tx!=null) tx.rollback();
-            e.printStackTrace(); 
+            if (tx != null)
+                tx.rollback();
+            e.printStackTrace();
         } finally {
-            session.close(); 
+            session.close();
         }
         return obj;
     }
 
-    public static void updateItem(long itemId, String name){
+    public static <T> void delete(Class<? extends T> clazz, Serializable id) {
         Session session = factory.openSession();
         Transaction tx = null;
         try {
             tx = session.beginTransaction();
-            Item obj = (Item) session.get(Item.class, itemId); 
-            obj.setName(name);
-            session.update(obj); 
+            T obj = clazz.cast(session.get(clazz, id));
+            session.delete(obj);
             tx.commit();
         } catch (HibernateException e) {
-            if (tx!=null) tx.rollback();
-            e.printStackTrace(); 
+            if (tx != null)
+                tx.rollback();
+            e.printStackTrace();
         } finally {
-            session.close(); 
-        }
-    }
-    
-    public static void updateCart(long cartId, String type, Set<Item> items){
-        Session session = factory.openSession();
-        Transaction tx = null;
-        try {
-            tx = session.beginTransaction();
-            Cart obj = (Cart) session.get(Cart.class, cartId); 
-            obj.setType(type);
-            obj.setItems(items);
-            session.update(obj); 
-            tx.commit();
-        } catch (HibernateException e) {
-            if (tx!=null) tx.rollback();
-            e.printStackTrace(); 
-        } finally {
-            session.close(); 
-        }
-    }
-  
-    public static <T> void delete(Class<? extends T> clazz, Serializable id){
-        Session session = factory.openSession();
-        Transaction tx = null;
-        try {
-            tx = session.beginTransaction();
-            T obj = clazz.cast(session.get(clazz, id)); 
-            session.delete(obj); 
-            tx.commit();
-        } catch (HibernateException e) {
-            if (tx!=null) tx.rollback();
-            e.printStackTrace(); 
-        } finally {
-            session.close(); 
+            session.close();
         }
     }
 
@@ -146,30 +126,31 @@ public class Manager {
         return listCollection(clazz, "");
     }
 
-    public static <T> Collection<?> listCollection(Class<? extends T> clazz, String where){
+    public static <T> Collection<?> listCollection(Class<? extends T> clazz, String where) {
         Session session = factory.openSession();
         Transaction tx = null;
         Collection<?> result = null;
         try {
             tx = session.beginTransaction();
             if (where.length() == 0) {
-                result = session.createQuery("FROM " + clazz.getName()).list(); 
+                result = session.createQuery("FROM " + clazz.getName()).list();
             } else {
                 result = session.createQuery("FROM " + clazz.getName() + " WHERE " + where).list();
             }
             tx.commit();
         } catch (HibernateException e) {
-            if (tx!=null) tx.rollback();
-            e.printStackTrace(); 
+            if (tx != null)
+                tx.rollback();
+            e.printStackTrace();
         } finally {
-            session.close(); 
+            session.close();
         }
         return result;
     }
 
-    public static <T> String collectionToString(Class<? extends T> clazz, Collection<?> collection){
+    public static <T> String collectionToString(Class<? extends T> clazz, Collection<?> collection) {
         String txt = "";
-        for(Object obj: collection) {
+        for (Object obj : collection) {
             T cObj = clazz.cast(obj);
             txt += "\n" + cObj.toString();
         }
@@ -179,7 +160,7 @@ public class Manager {
         return txt;
     }
 
-    public static void queryUpdate (String queryString) {
+    public static void queryUpdate(String queryString) {
         Session session = factory.openSession();
         Transaction tx = null;
         try {
@@ -188,14 +169,15 @@ public class Manager {
             query.executeUpdate();
             tx.commit();
         } catch (HibernateException e) {
-            if (tx!=null) tx.rollback();
-            e.printStackTrace(); 
+            if (tx != null)
+                tx.rollback();
+            e.printStackTrace();
         } finally {
-            session.close(); 
+            session.close();
         }
     }
 
-    public static List<Object[]> queryTable (String queryString) {
+    public static List<Object[]> queryTable(String queryString) {
         Session session = factory.openSession();
         Transaction tx = null;
         List<Object[]> result = null;
@@ -207,15 +189,16 @@ public class Manager {
             result = rows;
             tx.commit();
         } catch (HibernateException e) {
-            if (tx!=null) tx.rollback();
-            e.printStackTrace(); 
+            if (tx != null)
+                tx.rollback();
+            e.printStackTrace();
         } finally {
-            session.close(); 
+            session.close();
         }
         return result;
     }
 
-    public static String tableToString (List<Object[]> rows) {
+    public static String tableToString(List<Object[]> rows) {
         String txt = "";
         for (Object[] row : rows) {
             for (Object cell : row) {
@@ -227,7 +210,7 @@ public class Manager {
             txt += "\n";
         }
         if (txt.length() >= 2) {
-            txt =  txt.substring(0, txt.length() - 2);
+            txt = txt.substring(0, txt.length() - 2);
         }
         return txt;
     }
